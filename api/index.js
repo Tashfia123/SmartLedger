@@ -1,11 +1,8 @@
 // Vercel serverless function wrapper for Express API
+const serverlessExpress = require("@vendia/serverless-express");
 const app = require("../index.js");
 
-// Vercel expects a default export function
-module.exports = (req, res) => {
-	// Remove /api prefix for Express routes
-	if (req.url.startsWith("/api/")) {
-		req.url = req.url.replace("/api", "");
-	}
-	return app(req, res);
-};
+// Wrap Express app for Vercel serverless
+const handler = serverlessExpress({ app });
+
+module.exports = handler;
