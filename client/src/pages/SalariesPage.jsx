@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-const apiBase = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:5000";
+import { apiBase } from "../utils/api";
 
 export default function SalariesPage() {
 	const [rows, setRows] = useState([]);

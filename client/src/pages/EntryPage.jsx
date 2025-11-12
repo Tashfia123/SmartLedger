@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-const apiBase = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://localhost:5000";
+import { apiBase } from "../utils/api";
 
 const paymentModes = ["Cash", "Bank Transfer", "Credit Card", "Mobile Payment"];
 const paymentStatuses = ["Pending", "Completed", "Refunded"];

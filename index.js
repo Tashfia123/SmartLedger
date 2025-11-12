@@ -19,9 +19,12 @@ app.use((req, _res, next) => {
 	next();
 });
 
-// Serve static frontend from /public
-const publicDir = path.join(__dirname, "public");
-app.use(express.static(publicDir));
+// Serve static frontend from /public (only in local dev, not on Vercel)
+// On Vercel, static files are served directly, not through Express
+if (process.env.VERCEL !== "1") {
+	const publicDir = path.join(__dirname, "public");
+	app.use(express.static(publicDir));
+}
 
 // Health check
 app.get("/health", (_req, res) => {
@@ -44,17 +47,26 @@ app.use("/api", categoriesRouter);
 app.use("/api", transactionsRouter);
 
 // Fallback to index.html for non-API routes only (SPA support)
-app.use((req, res, next) => {
-	if (req.path.startsWith("/api")) {
-		return res.status(404).json({ error: "Not found" });
-	}
-	res.sendFile(path.join(publicDir, "index.html"));
-});
+// Only in local dev - on Vercel, static files are served directly
+if (process.env.VERCEL !== "1") {
+	app.use((req, res, next) => {
+		if (req.path.startsWith("/api")) {
+			return res.status(404).json({ error: "Not found" });
+		}
+		const publicDir = path.join(__dirname, "public");
+		res.sendFile(path.join(publicDir, "index.html"));
+	});
+}
 
-const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+// Export app for Vercel serverless
+module.exports = app;
 
+// Only start server if not in Vercel environment
+if (process.env.VERCEL !== "1") {
+	const PORT = process.env.PORT ? Number(process.env.PORT) : 5000;
+	app.listen(PORT, () => {
+		// eslint-disable-next-line no-console
+		console.log(`Server running on http://localhost:${PORT}`);
+	});
+}
 
