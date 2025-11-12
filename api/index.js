@@ -1,8 +1,11 @@
 // Vercel serverless function wrapper for Express API
 const app = require("../index.js");
 
+// Vercel expects a default export function
 module.exports = (req, res) => {
-	// Vercel provides req, res - Express handles it
+	// Remove /api prefix for Express routes
+	if (req.url.startsWith("/api/")) {
+		req.url = req.url.replace("/api", "");
+	}
 	return app(req, res);
 };
-
