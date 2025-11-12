@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "vercel-build": "vite build"
+    "vercel-build": "vite build && echo 'Build completed in dist/'"
   },
   "dependencies": {
     "react": "^18.3.1",
