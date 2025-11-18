@@ -1,27 +1,36 @@
 import { Link, useLocation } from "react-router-dom";
 
-export default function Navbar() {
+export default function Sidebar() {
 	const { pathname } = useLocation();
-	const link = (to, label) => (
-		<Link className={`topnav-link ${pathname === to ? "active" : ""}`} to={to}>{label}</Link>
-	);
+	
+	const menuItems = [
+		{ to: "/", label: "Dashboard", icon: "📊" },
+		{ to: "/new", label: "New Transaction", icon: "➕" },
+		{ to: "/summary", label: "Summary", icon: "📋" },
+		{ to: "/income", label: "Income", icon: "💰" },
+		{ to: "/expenses", label: "Expenses", icon: "💸" },
+		{ to: "/salaries", label: "Salaries", icon: "💵" },
+		{ to: "/settings", label: "Settings", icon: "⚙️" },
+	];
+
 	return (
-		<header className="topnav">
-			<div className="topnav-inner">
-				<div className="topnav-left">
-					<span className="brand">SmartLedger</span>
-				</div>
-				<nav className="topnav-right">
-					{link("/", "Dashboard")}
-					{link("/new", "New Transaction")}
-					{link("/summary", "Summary")}
-					{link("/income", "Income")}
-					{link("/expenses", "Expenses")}
-					{link("/salaries", "Salaries")}
-					{link("/settings", "Settings")}
-				</nav>
+		<aside className="sidebar">
+			<div className="sidebar-header">
+				<span className="brand">SmartLedger</span>
 			</div>
-		</header>
+			<nav className="sidebar-nav">
+				{menuItems.map((item) => (
+					<Link
+						key={item.to}
+						className={`sidebar-link ${pathname === item.to ? "active" : ""}`}
+						to={item.to}
+					>
+						<span className="sidebar-icon">{item.icon}</span>
+						<span className="sidebar-label">{item.label}</span>
+					</Link>
+				))}
+			</nav>
+		</aside>
 	);
 }
 
