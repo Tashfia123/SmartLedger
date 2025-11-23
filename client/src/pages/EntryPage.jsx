@@ -69,7 +69,7 @@ export default function EntryPage() {
 	const [invoiceNumber, setInvoiceNumber] = useState("");
 	const [amount, setAmount] = useState("");
 	const [paymentMode, setPaymentMode] = useState(paymentModes[0]);
-	const [paymentStatus, setPaymentStatus] = useState(paymentStatuses[0]);
+	const [paymentStatus, setPaymentStatus] = useState(paymentStatuses[1]); // Default to "Completed"
 	const [remarks, setRemarks] = useState("");
 	const [suggestions, setSuggestions] = useState([]);
 	const [recent, setRecent] = useState([]);

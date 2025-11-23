@@ -89,6 +89,7 @@ input:focus, select:focus, textarea:focus {
 /* Form grid: 3 fields per row (desktop) */
 .form-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 20px; align-items: end; }
 .col-3 { grid-column: span 3; } .col-4 { grid-column: span 4; } .col-6 { grid-column: span 6; } .col-12 { grid-column: span 12; }
+.col-2-4 { grid-column: span 2.4; } /* For 5 items in a row (12/5 = 2.4) */
 
 /* Pills/alerts */
 .pill {

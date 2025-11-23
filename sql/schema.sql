@@ -3,7 +3,7 @@
 CREATE TABLE IF NOT EXISTS categories (
   category_id SERIAL PRIMARY KEY,
   name VARCHAR(100) NOT NULL,
-  type VARCHAR(20) NOT NULL CHECK (type IN ('income','expense'))
+  type VARCHAR(20) NOT NULL CHECK (type IN ('income','expense','liability','asset'))
 );
 
 -- Ensure each category name is unique globally
@@ -21,7 +21,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_subcategories_cat_name ON subcategories(ca
 CREATE TABLE IF NOT EXISTS transactions (
   transaction_id SERIAL PRIMARY KEY,
   user_id INT,
-  transaction_type VARCHAR(10) NOT NULL CHECK (transaction_type IN ('income','expense')),
+  transaction_type VARCHAR(10) NOT NULL CHECK (transaction_type IN ('income','expense','liability','asset')),
   date DATE DEFAULT CURRENT_DATE,
   category VARCHAR(100),
   sub_category VARCHAR(100),

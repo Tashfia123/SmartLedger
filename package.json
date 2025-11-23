@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node index.js",
-    "db:init": "node scripts/initDb.js"
+    "db:init": "node scripts/initDb.js",
+    "db:migrate": "node scripts/run_migration.js"
   },
   "keywords": [],
   "author": "",

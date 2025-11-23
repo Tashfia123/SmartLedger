@@ -5,11 +5,7 @@ export default function Sidebar() {
 	
 	const menuItems = [
 		{ to: "/", label: "Dashboard", icon: "📊" },
-		{ to: "/new", label: "New Transaction", icon: "➕" },
-		{ to: "/summary", label: "Summary", icon: "📋" },
-		{ to: "/income", label: "Income", icon: "💰" },
-		{ to: "/expenses", label: "Expenses", icon: "💸" },
-		{ to: "/salaries", label: "Salaries", icon: "💵" },
+		{ to: "/summary", label: "Transaction", icon: "📋" },
 		{ to: "/settings", label: "Settings", icon: "⚙️" },
 	];
 

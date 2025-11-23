@@ -29,7 +29,7 @@ router.get("/transactions", async (req, res) => {
 			params.push(parseInt(monthNum));
 		}
 
-		query += " ORDER BY created_at DESC";
+		query += " ORDER BY date DESC NULLS LAST, created_at DESC";
 
 		const { rows } = await pool.query(query, params);
 		res.json(rows);
@@ -56,8 +56,10 @@ router.get("/transactions/monthly-summary", async (req, res) => {
 				TO_CHAR(date, 'YYYY-MM') AS month,
 				EXTRACT(YEAR FROM date) AS year,
 				EXTRACT(MONTH FROM date) AS month_num,
-				SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END) AS income,
-				SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END) AS expense
+				COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0)::numeric AS income,
+				COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS expense,
+				COALESCE(SUM(CASE WHEN transaction_type = 'liability' THEN amount ELSE 0 END), 0)::numeric AS liability,
+				COALESCE(SUM(CASE WHEN transaction_type = 'asset' THEN amount ELSE 0 END), 0)::numeric AS asset
 			FROM transactions
 			WHERE date IS NOT NULL
 			GROUP BY TO_CHAR(date, 'YYYY-MM'), EXTRACT(YEAR FROM date), EXTRACT(MONTH FROM date)
@@ -77,7 +79,9 @@ router.get("/transactions/yearly-summary", async (req, res) => {
 			SELECT 
 				EXTRACT(YEAR FROM date)::int AS year,
 				COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0)::numeric AS income,
-				COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS expense
+				COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS expense,
+				COALESCE(SUM(CASE WHEN transaction_type = 'liability' THEN amount ELSE 0 END), 0)::numeric AS liability,
+				COALESCE(SUM(CASE WHEN transaction_type = 'asset' THEN amount ELSE 0 END), 0)::numeric AS asset
 			FROM transactions
 			WHERE date IS NOT NULL
 			GROUP BY EXTRACT(YEAR FROM date)
@@ -114,7 +118,9 @@ router.get("/transactions/weekly-summary", async (req, res) => {
 				EXTRACT(YEAR FROM date) AS year,
 				EXTRACT(WEEK FROM date) AS week_num,
 				COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0)::numeric AS income,
-				COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS expense
+				COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS expense,
+				COALESCE(SUM(CASE WHEN transaction_type = 'liability' THEN amount ELSE 0 END), 0)::numeric AS liability,
+				COALESCE(SUM(CASE WHEN transaction_type = 'asset' THEN amount ELSE 0 END), 0)::numeric AS asset
 			FROM transactions
 			WHERE date IS NOT NULL
 				AND DATE_TRUNC('week', date) = DATE_TRUNC('week', $1::date)
@@ -138,7 +144,9 @@ router.get("/transactions/today-summary", async (req, res) => {
 				date::date AS day,
 				TO_CHAR(date, 'YYYY-MM-DD') AS day_str,
 				COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0)::numeric AS income,
-				COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS expense
+				COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS expense,
+				COALESCE(SUM(CASE WHEN transaction_type = 'liability' THEN amount ELSE 0 END), 0)::numeric AS liability,
+				COALESCE(SUM(CASE WHEN transaction_type = 'asset' THEN amount ELSE 0 END), 0)::numeric AS asset
 			FROM transactions
 			WHERE date IS NOT NULL
 				AND date::date = $1::date
@@ -164,7 +172,9 @@ router.get("/transactions/this-month-summary", async (req, res) => {
 				EXTRACT(MONTH FROM date)::int AS month,
 				TO_CHAR(date, 'YYYY-MM') AS month_str,
 				COALESCE(SUM(CASE WHEN transaction_type = 'income' THEN amount ELSE 0 END), 0)::numeric AS income,
-				COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS expense
+				COALESCE(SUM(CASE WHEN transaction_type = 'expense' THEN amount ELSE 0 END), 0)::numeric AS expense,
+				COALESCE(SUM(CASE WHEN transaction_type = 'liability' THEN amount ELSE 0 END), 0)::numeric AS liability,
+				COALESCE(SUM(CASE WHEN transaction_type = 'asset' THEN amount ELSE 0 END), 0)::numeric AS asset
 			FROM transactions
 			WHERE date IS NOT NULL
 				AND EXTRACT(YEAR FROM date) = $1
@@ -179,7 +189,9 @@ router.get("/transactions/this-month-summary", async (req, res) => {
 				month: month,
 				month_str: `${year}-${String(month).padStart(2, '0')}`,
 				income: 0,
-				expense: 0
+				expense: 0,
+				liability: 0,
+				asset: 0
 			}]);
 		}
 		
@@ -257,7 +269,7 @@ router.get("/transactions/export", async (req, res) => {
 			params.push(parseInt(monthNum));
 		}
 
-		query += " ORDER BY created_at DESC";
+		query += " ORDER BY date DESC NULLS LAST, created_at DESC";
 
 		const { rows } = await pool.query(query, params);
 
@@ -451,7 +463,7 @@ router.delete("/transactions/:id", async (req, res) => {
 router.get("/transactions-recent", async (_req, res) => {
 	try {
 		const { rows } = await pool.query(
-			"SELECT date, transaction_type, description, amount FROM transactions ORDER BY created_at DESC LIMIT 3"
+			"SELECT date, transaction_type, description, amount FROM transactions ORDER BY date DESC NULLS LAST, created_at DESC LIMIT 3"
 		);
 		res.json(rows);
 	} catch (e) {

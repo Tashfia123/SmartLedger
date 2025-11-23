@@ -1,0 +1,78 @@
+@echo off
+REM Insert Liability and Asset Transaction Data
+REM Make sure your backend server is running on http://localhost:5000
+
+echo Inserting Liability Transactions...
+
+REM Current Liabilities Examples
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"liability\",\"date\":\"2025-01-15\",\"category\":\"Current_Liabilities\",\"sub_category\":\"Accounts Payable\",\"description\":\"Outstanding vendor invoices\",\"client_vendor\":\"Tech Supplies Inc\",\"invoice_number\":\"INV-2025-001\",\"amount\":\"50000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Pending\",\"remarks\":\"Due in 30 days\"}"
+
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"liability\",\"date\":\"2025-01-20\",\"category\":\"Current_Liabilities\",\"sub_category\":\"Short-term Loans\",\"description\":\"Business loan installment\",\"client_vendor\":\"Business Bank\",\"invoice_number\":\"LOAN-2025-001\",\"amount\":\"25000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"Monthly installment\"}"
+
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"liability\",\"date\":\"2025-02-01\",\"category\":\"Current_Liabilities\",\"sub_category\":\"Taxes Payable\",\"description\":\"Income tax payable\",\"client_vendor\":\"Tax Authority\",\"invoice_number\":\"TAX-2025-001\",\"amount\":\"75000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Pending\",\"remarks\":\"Q1 tax liability\"}"
+
+REM Long Term Liabilities Examples
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"liability\",\"date\":\"2025-01-10\",\"category\":\"Long_Term_Liabilities\",\"sub_category\":\"Long-term Loans\",\"description\":\"Equipment financing loan\",\"client_vendor\":\"Finance Corp\",\"invoice_number\":\"EQ-LOAN-001\",\"amount\":\"200000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"5 year term loan\"}"
+
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"liability\",\"date\":\"2025-01-25\",\"category\":\"Long_Term_Liabilities\",\"sub_category\":\"Mortgage Payable\",\"description\":\"Office building mortgage\",\"client_vendor\":\"Property Bank\",\"invoice_number\":\"MORT-2025-001\",\"amount\":\"500000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"Monthly mortgage payment\"}"
+
+echo.
+echo Inserting Asset Transactions...
+
+REM Current Assets Examples
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"asset\",\"date\":\"2025-01-05\",\"category\":\"Current_Assets\",\"sub_category\":\"Cash\",\"description\":\"Cash deposit to business account\",\"client_vendor\":\"Business Bank\",\"invoice_number\":\"DEP-2025-001\",\"amount\":\"100000.00\",\"payment_mode\":\"Cash\",\"payment_status\":\"Completed\",\"remarks\":\"Initial capital deposit\"}"
+
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"asset\",\"date\":\"2025-01-12\",\"category\":\"Current_Assets\",\"sub_category\":\"Accounts Receivable\",\"description\":\"Invoice payment received\",\"client_vendor\":\"ABC Corporation\",\"invoice_number\":\"AR-2025-001\",\"amount\":\"75000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"Payment for services rendered\"}"
+
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"asset\",\"date\":\"2025-01-18\",\"category\":\"Current_Assets\",\"sub_category\":\"Short-term Investments\",\"description\":\"Investment in money market fund\",\"client_vendor\":\"Investment Bank\",\"invoice_number\":\"INV-2025-001\",\"amount\":\"150000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"6 month investment\"}"
+
+REM Fixed Assets Examples
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"asset\",\"date\":\"2025-01-08\",\"category\":\"Fixed_Assets\",\"sub_category\":\"Computer Equipment\",\"description\":\"Purchase of server equipment\",\"client_vendor\":\"Tech Hardware Co\",\"invoice_number\":\"EQ-2025-001\",\"amount\":\"50000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"Production servers\"}"
+
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"asset\",\"date\":\"2025-01-22\",\"category\":\"Fixed_Assets\",\"sub_category\":\"Vehicles\",\"description\":\"Company vehicle purchase\",\"client_vendor\":\"Auto Dealer\",\"invoice_number\":\"VEH-2025-001\",\"amount\":\"35000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"Delivery van\"}"
+
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"asset\",\"date\":\"2025-02-05\",\"category\":\"Fixed_Assets\",\"sub_category\":\"Furniture & Fixtures\",\"description\":\"Office furniture purchase\",\"client_vendor\":\"Office Supplies Co\",\"invoice_number\":\"FURN-2025-001\",\"amount\":\"25000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"Desks and chairs\"}"
+
+REM Intangible Assets Examples
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"asset\",\"date\":\"2025-01-15\",\"category\":\"Intangible_Assets\",\"sub_category\":\"Software Development Costs\",\"description\":\"Custom software development\",\"client_vendor\":\"Dev Team Inc\",\"invoice_number\":\"SW-2025-001\",\"amount\":\"100000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"Internal software project\"}"
+
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"asset\",\"date\":\"2025-01-28\",\"category\":\"Intangible_Assets\",\"sub_category\":\"Licenses\",\"description\":\"Software license purchase\",\"client_vendor\":\"Software Corp\",\"invoice_number\":\"LIC-2025-001\",\"amount\":\"15000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"Annual enterprise license\"}"
+
+REM Investments Examples
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"asset\",\"date\":\"2025-01-30\",\"category\":\"Investments\",\"sub_category\":\"Stocks\",\"description\":\"Stock market investment\",\"client_vendor\":\"Brokerage Firm\",\"invoice_number\":\"STK-2025-001\",\"amount\":\"200000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"Diversified portfolio\"}"
+
+curl -X POST http://localhost:5000/api/transactions ^
+  -H "Content-Type: application/json" ^
+  -d "{\"transaction_type\":\"asset\",\"date\":\"2025-02-10\",\"category\":\"Investments\",\"sub_category\":\"Real Estate Investments\",\"description\":\"Commercial property investment\",\"client_vendor\":\"Real Estate Co\",\"invoice_number\":\"RE-2025-001\",\"amount\":\"500000.00\",\"payment_mode\":\"Bank Transfer\",\"payment_status\":\"Completed\",\"remarks\":\"Investment property purchase\"}"
+
+echo.
+echo Data insertion completed!
+

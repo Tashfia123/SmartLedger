@@ -1,5 +1,5 @@
 import { apiBase } from "../utils/api";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
 	Chart as ChartJS,
 	CategoryScale,
@@ -20,9 +20,18 @@ ChartJS.register(
 	Legend
 );
 
+// Helper function to get week number
+function getWeekNumber(date) {
+	const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+	const dayNum = d.getUTCDay() || 7;
+	d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+	const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+	return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
 export default function Dashboard() {
-	const [counts, setCounts] = useState({ total: 0, income: 0, expense: 0 });
-	const [totals, setTotals] = useState({ income: 0, expense: 0 });
+	const [counts, setCounts] = useState({ total: 0, income: 0, expense: 0, liability: 0, asset: 0 });
+	const [totals, setTotals] = useState({ income: 0, expense: 0, liability: 0, asset: 0 });
 	const [monthlyData, setMonthlyData] = useState([]);
 	const [yearlyData, setYearlyData] = useState([]);
 	const [weeklyData, setWeeklyData] = useState([]);
@@ -34,38 +43,178 @@ export default function Dashboard() {
 	const [selectedView, setSelectedView] = useState("monthly"); // "yearly", "monthly", "weekly", "today", "thisMonth"
 
 	useEffect(() => {
-		Promise.all([
-			fetch(`${apiBase}/api/transactions`).then(r => r.json()).catch(() => []),
-			fetch(`${apiBase}/api/transactions/monthly-summary`).then(r => r.json()).catch(() => []),
-			fetch(`${apiBase}/api/transactions/yearly-summary`).then(r => r.json()).catch(() => []),
-			fetch(`${apiBase}/api/transactions/weekly-summary`).then(r => r.json()).catch(() => []),
-			fetch(`${apiBase}/api/transactions/today-summary`).then(r => r.json()).catch(() => []),
-		]).then(([rows, monthly, yearly, weekly, today]) => {
-			const incomeCount = rows.filter(r => r.transaction_type === "income").length;
-			const expenseCount = rows.filter(r => r.transaction_type === "expense").length;
-			setCounts({ total: rows.length, income: incomeCount, expense: expenseCount });
+		fetch(`${apiBase}/api/transactions`)
+			.then(r => r.json())
+			.catch(() => [])
+			.then(rows => {
+				const incomeCount = rows.filter(r => r.transaction_type === "income").length;
+				const expenseCount = rows.filter(r => r.transaction_type === "expense").length;
+				const liabilityCount = rows.filter(r => r.transaction_type === "liability").length;
+				const assetCount = rows.filter(r => r.transaction_type === "asset").length;
+				setCounts({ total: rows.length, income: incomeCount, expense: expenseCount, liability: liabilityCount, asset: assetCount });
+				
+				// Calculate total amounts
+				const totalIncome = rows
+					.filter(r => r.transaction_type === "income")
+					.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+				const totalExpense = rows
+					.filter(r => r.transaction_type === "expense")
+					.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+				const totalLiability = rows
+					.filter(r => r.transaction_type === "liability")
+					.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+				const totalAsset = rows
+					.filter(r => r.transaction_type === "asset")
+					.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+				setTotals({ income: totalIncome, expense: totalExpense, liability: totalLiability, asset: totalAsset });
+				
+				// Calculate monthly data from transactions (same as summary page)
+				const monthlyMap = new Map();
+				rows.filter(r => r.date).forEach(r => {
+					const date = new Date(r.date);
+					const year = date.getFullYear();
+					const month = date.getMonth() + 1;
+					const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+					
+					if (!monthlyMap.has(monthKey)) {
+						monthlyMap.set(monthKey, {
+							month: monthKey,
+							year: year,
+							month_num: month,
+							income: 0,
+							expense: 0,
+							liability: 0,
+							asset: 0
+						});
+					}
+					
+					const entry = monthlyMap.get(monthKey);
+					const amount = parseFloat(r.amount || 0);
+					if (r.transaction_type === "income") entry.income += amount;
+					else if (r.transaction_type === "expense") entry.expense += amount;
+					else if (r.transaction_type === "liability") entry.liability += amount;
+					else if (r.transaction_type === "asset") entry.asset += amount;
+				});
+				
+				const monthlyArray = Array.from(monthlyMap.values())
+					.sort((a, b) => {
+						if (a.year !== b.year) return b.year - a.year;
+						return b.month_num - a.month_num;
+					})
+					.slice(0, 12)
+					.reverse();
+				setMonthlyData(monthlyArray);
+				
+				// Calculate yearly data from transactions (last 3 years)
+				const yearlyMap = new Map();
+				rows.filter(r => r.date).forEach(r => {
+					const date = new Date(r.date);
+					const year = date.getFullYear();
+					
+					if (!yearlyMap.has(year)) {
+						yearlyMap.set(year, {
+							year: year,
+							income: 0,
+							expense: 0,
+							liability: 0,
+							asset: 0
+						});
+					}
+					
+					const entry = yearlyMap.get(year);
+					const amount = parseFloat(r.amount || 0);
+					if (r.transaction_type === "income") entry.income += amount;
+					else if (r.transaction_type === "expense") entry.expense += amount;
+					else if (r.transaction_type === "liability") entry.liability += amount;
+					else if (r.transaction_type === "asset") entry.asset += amount;
+				});
+				
+				const yearlyArray = Array.from(yearlyMap.values())
+					.sort((a, b) => b.year - a.year)
+					.slice(0, 3)
+					.reverse();
+				setYearlyData(yearlyArray);
+				
+				// Calculate weekly data from transactions (latest week)
+				const now = new Date();
+				const latestWeekStart = new Date(now);
+				latestWeekStart.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+				latestWeekStart.setHours(0, 0, 0, 0);
+				
+				const latestWeekEnd = new Date(latestWeekStart);
+				latestWeekEnd.setDate(latestWeekStart.getDate() + 6);
+				latestWeekEnd.setHours(23, 59, 59, 999);
+				
+				const weeklyTransactions = rows.filter(r => {
+					if (!r.date) return false;
+					const transactionDate = new Date(r.date);
+					return transactionDate >= latestWeekStart && transactionDate <= latestWeekEnd;
+				});
+				
+				const weeklyIncome = weeklyTransactions
+					.filter(r => r.transaction_type === "income")
+					.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+				const weeklyExpense = weeklyTransactions
+					.filter(r => r.transaction_type === "expense")
+					.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+				const weeklyLiability = weeklyTransactions
+					.filter(r => r.transaction_type === "liability")
+					.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+				const weeklyAsset = weeklyTransactions
+					.filter(r => r.transaction_type === "asset")
+					.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+				
+				setWeeklyData([{
+					week_start: latestWeekStart.toISOString().split('T')[0],
+					week: latestWeekStart.toISOString().split('T')[0],
+					year: latestWeekStart.getFullYear(),
+					week_num: getWeekNumber(latestWeekStart),
+					income: weeklyIncome,
+					expense: weeklyExpense,
+					liability: weeklyLiability,
+					asset: weeklyAsset
+				}]);
+
+			// Calculate today's data from all transactions (same as summary page)
+			const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+			const todayYear = now.getFullYear();
+			const todayMonth = now.getMonth() + 1;
+			const todayDay = now.getDate();
 			
-			// Calculate total amounts
-			const totalIncome = rows
+			const todayTransactions = rows.filter(r => {
+				if (!r.date) return false;
+				// Handle both date string formats (YYYY-MM-DD or full ISO string)
+				const dateStr = r.date.split('T')[0]; // Get YYYY-MM-DD part
+				const transactionDate = new Date(r.date);
+				// Compare year, month, and day to handle timezone issues
+				return transactionDate.getFullYear() === todayYear &&
+				       transactionDate.getMonth() + 1 === todayMonth &&
+				       transactionDate.getDate() === todayDay;
+			});
+			
+			const todayIncome = todayTransactions
 				.filter(r => r.transaction_type === "income")
 				.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
-			const totalExpense = rows
+			const todayExpense = todayTransactions
 				.filter(r => r.transaction_type === "expense")
 				.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
-			setTotals({ income: totalIncome, expense: totalExpense });
+			const todayLiability = todayTransactions
+				.filter(r => r.transaction_type === "liability")
+				.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+			const todayAsset = todayTransactions
+				.filter(r => r.transaction_type === "asset")
+				.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
 			
-			// Debug logging
-			console.log("Monthly data:", monthly);
-			console.log("Yearly data:", yearly);
-			console.log("Weekly data:", weekly);
-			
-			setMonthlyData(Array.isArray(monthly) ? monthly.reverse() : []);
-			setYearlyData(Array.isArray(yearly) ? yearly.reverse() : []);
-			setWeeklyData(Array.isArray(weekly) ? weekly.reverse() : []);
-			setTodayData(Array.isArray(today) ? today : []);
+			setTodayData([{
+				day: todayStr,
+				day_str: todayStr,
+				income: todayIncome,
+				expense: todayExpense,
+				liability: todayLiability,
+				asset: todayAsset
+			}]);
 			
 			// Calculate this month data from all transactions (same as summary page)
-			const now = new Date();
 			const currentYear = now.getFullYear();
 			const currentMonth = now.getMonth() + 1;
 			
@@ -82,13 +231,21 @@ export default function Dashboard() {
 			const thisMonthExpense = thisMonthTransactions
 				.filter(r => r.transaction_type === "expense")
 				.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+			const thisMonthLiability = thisMonthTransactions
+				.filter(r => r.transaction_type === "liability")
+				.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
+			const thisMonthAsset = thisMonthTransactions
+				.filter(r => r.transaction_type === "asset")
+				.reduce((sum, r) => sum + parseFloat(r.amount || 0), 0);
 			
 			setThisMonthData([{
 				year: currentYear,
 				month: currentMonth,
 				month_str: `${currentYear}-${String(currentMonth).padStart(2, '0')}`,
 				income: thisMonthIncome,
-				expense: thisMonthExpense
+				expense: thisMonthExpense,
+				liability: thisMonthLiability,
+				asset: thisMonthAsset
 			}]);
 
 			// Calculate top clients from transactions data
@@ -145,6 +302,49 @@ export default function Dashboard() {
 
 	const netProfit = totals.income - totals.expense;
 
+	// Calculate totals for current view
+	const viewTotals = useMemo(() => {
+		switch (selectedView) {
+			case "yearly":
+				return yearlyData.reduce((acc, d) => ({
+					income: acc.income + parseFloat(d.income || 0),
+					expense: acc.expense + parseFloat(d.expense || 0),
+					liability: acc.liability + parseFloat(d.liability || 0),
+					asset: acc.asset + parseFloat(d.asset || 0),
+				}), { income: 0, expense: 0, liability: 0, asset: 0 });
+			case "monthly":
+				return monthlyData.reduce((acc, d) => ({
+					income: acc.income + parseFloat(d.income || 0),
+					expense: acc.expense + parseFloat(d.expense || 0),
+					liability: acc.liability + parseFloat(d.liability || 0),
+					asset: acc.asset + parseFloat(d.asset || 0),
+				}), { income: 0, expense: 0, liability: 0, asset: 0 });
+			case "weekly":
+				return weeklyData.length > 0 ? {
+					income: parseFloat(weeklyData[0].income || 0),
+					expense: parseFloat(weeklyData[0].expense || 0),
+					liability: parseFloat(weeklyData[0].liability || 0),
+					asset: parseFloat(weeklyData[0].asset || 0),
+				} : { income: 0, expense: 0, liability: 0, asset: 0 };
+			case "today":
+				return todayData.length > 0 ? {
+					income: parseFloat(todayData[0].income || 0),
+					expense: parseFloat(todayData[0].expense || 0),
+					liability: parseFloat(todayData[0].liability || 0),
+					asset: parseFloat(todayData[0].asset || 0),
+				} : { income: 0, expense: 0, liability: 0, asset: 0 };
+			case "thisMonth":
+				return thisMonthData.length > 0 ? {
+					income: parseFloat(thisMonthData[0].income || 0),
+					expense: parseFloat(thisMonthData[0].expense || 0),
+					liability: parseFloat(thisMonthData[0].liability || 0),
+					asset: parseFloat(thisMonthData[0].asset || 0),
+				} : { income: 0, expense: 0, liability: 0, asset: 0 };
+			default:
+				return { income: 0, expense: 0, liability: 0, asset: 0 };
+		}
+	}, [selectedView, yearlyData, monthlyData, weeklyData, todayData, thisMonthData]);
+
 	const monthlyChartData = {
 		labels: monthlyData.map(d => {
 			const [year, month] = d.month.split("-");
@@ -164,6 +364,20 @@ export default function Dashboard() {
 				data: monthlyData.map(d => parseFloat(d.expense || 0)),
 				backgroundColor: "rgba(239, 68, 68, 0.7)",
 				borderColor: "rgba(239, 68, 68, 1)",
+				borderWidth: 1,
+			},
+			{
+				label: "Liability",
+				data: monthlyData.map(d => parseFloat(d.liability || 0)),
+				backgroundColor: "rgba(251, 191, 36, 0.7)",
+				borderColor: "rgba(251, 191, 36, 1)",
+				borderWidth: 1,
+			},
+			{
+				label: "Asset",
+				data: monthlyData.map(d => parseFloat(d.asset || 0)),
+				backgroundColor: "rgba(59, 130, 246, 0.7)",
+				borderColor: "rgba(59, 130, 246, 1)",
 				borderWidth: 1,
 			},
 		],
@@ -186,6 +400,20 @@ export default function Dashboard() {
 				borderColor: "rgba(239, 68, 68, 1)",
 				borderWidth: 1,
 			},
+			{
+				label: "Liability",
+				data: yearlyData.map(d => parseFloat(d.liability || 0)),
+				backgroundColor: "rgba(251, 191, 36, 0.7)",
+				borderColor: "rgba(251, 191, 36, 1)",
+				borderWidth: 1,
+			},
+			{
+				label: "Asset",
+				data: yearlyData.map(d => parseFloat(d.asset || 0)),
+				backgroundColor: "rgba(59, 130, 246, 0.7)",
+				borderColor: "rgba(59, 130, 246, 1)",
+				borderWidth: 1,
+			},
 		],
 	};
 
@@ -194,36 +422,64 @@ export default function Dashboard() {
 		datasets: [
 			{
 				label: "Income",
-				data: weeklyData.length > 0 ? [parseFloat(weeklyData[0].income || 0)] : [],
+				data: weeklyData.length > 0 ? [parseFloat(weeklyData[0].income || 0)] : [0],
 				backgroundColor: "rgba(34, 197, 94, 0.7)",
 				borderColor: "rgba(34, 197, 94, 1)",
 				borderWidth: 1,
 			},
 			{
 				label: "Expense",
-				data: weeklyData.length > 0 ? [parseFloat(weeklyData[0].expense || 0)] : [],
+				data: weeklyData.length > 0 ? [parseFloat(weeklyData[0].expense || 0)] : [0],
 				backgroundColor: "rgba(239, 68, 68, 0.7)",
 				borderColor: "rgba(239, 68, 68, 1)",
+				borderWidth: 1,
+			},
+			{
+				label: "Liability",
+				data: weeklyData.length > 0 ? [parseFloat(weeklyData[0].liability || 0)] : [0],
+				backgroundColor: "rgba(251, 191, 36, 0.7)",
+				borderColor: "rgba(251, 191, 36, 1)",
+				borderWidth: 1,
+			},
+			{
+				label: "Asset",
+				data: weeklyData.length > 0 ? [parseFloat(weeklyData[0].asset || 0)] : [0],
+				backgroundColor: "rgba(59, 130, 246, 0.7)",
+				borderColor: "rgba(59, 130, 246, 1)",
 				borderWidth: 1,
 			},
 		],
 	};
 
 	const todayChartData = {
-		labels: todayData.length > 0 ? ["Today"] : [],
+		labels: ["Today"],
 		datasets: [
 			{
 				label: "Income",
-				data: todayData.length > 0 ? [parseFloat(todayData[0].income || 0)] : [],
+				data: todayData.length > 0 ? [parseFloat(todayData[0].income || 0)] : [0],
 				backgroundColor: "rgba(34, 197, 94, 0.7)",
 				borderColor: "rgba(34, 197, 94, 1)",
 				borderWidth: 1,
 			},
 			{
 				label: "Expense",
-				data: todayData.length > 0 ? [parseFloat(todayData[0].expense || 0)] : [],
+				data: todayData.length > 0 ? [parseFloat(todayData[0].expense || 0)] : [0],
 				backgroundColor: "rgba(239, 68, 68, 0.7)",
 				borderColor: "rgba(239, 68, 68, 1)",
+				borderWidth: 1,
+			},
+			{
+				label: "Liability",
+				data: todayData.length > 0 ? [parseFloat(todayData[0].liability || 0)] : [0],
+				backgroundColor: "rgba(251, 191, 36, 0.7)",
+				borderColor: "rgba(251, 191, 36, 1)",
+				borderWidth: 1,
+			},
+			{
+				label: "Asset",
+				data: todayData.length > 0 ? [parseFloat(todayData[0].asset || 0)] : [0],
+				backgroundColor: "rgba(59, 130, 246, 0.7)",
+				borderColor: "rgba(59, 130, 246, 1)",
 				borderWidth: 1,
 			},
 		],
@@ -244,6 +500,20 @@ export default function Dashboard() {
 				data: thisMonthData.length > 0 ? [parseFloat(thisMonthData[0].expense || 0)] : [0],
 				backgroundColor: "rgba(239, 68, 68, 0.7)",
 				borderColor: "rgba(239, 68, 68, 1)",
+				borderWidth: 1,
+			},
+			{
+				label: "Liability",
+				data: thisMonthData.length > 0 ? [parseFloat(thisMonthData[0].liability || 0)] : [0],
+				backgroundColor: "rgba(251, 191, 36, 0.7)",
+				borderColor: "rgba(251, 191, 36, 1)",
+				borderWidth: 1,
+			},
+			{
+				label: "Asset",
+				data: thisMonthData.length > 0 ? [parseFloat(thisMonthData[0].asset || 0)] : [0],
+				backgroundColor: "rgba(59, 130, 246, 0.7)",
+				borderColor: "rgba(59, 130, 246, 1)",
 				borderWidth: 1,
 			},
 		],
@@ -284,26 +554,91 @@ export default function Dashboard() {
 					<div className="badge">Dashboard</div>
 					<h1>Overview</h1>
 					<p className="sub">Quick snapshot of your ledger.</p>
-					<div className="form-grid" style={{ marginTop: 16 }}>
-						<div className="col-3"><div className="pill"><span className="dot" /> Total transactions: {counts.total}</div></div>
-						<div className="col-3"><div className="pill ok"><span className="dot" /> Income: {counts.income}</div></div>
-						<div className="col-3"><div className="pill error"><span className="dot" /> Expense: {counts.expense}</div></div>
-						<div className="col-3">
-							<div 
-								className={`pill ${netProfit >= 0 ? "ok" : "error"}`}
-								style={{ 
-									fontWeight: 600,
-									backgroundColor: netProfit >= 0 ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)",
-									borderColor: netProfit >= 0 ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"
-								}}
-							>
-								<span className="dot" />
-								<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-									<span style={{ fontSize: 11, opacity: 0.8, fontWeight: 500 }}>Net {netProfit >= 0 ? "Profit" : "Loss"}</span>
-									<span style={{ color: netProfit >= 0 ? "var(--ok)" : "var(--err)" }}>
-										{netProfit >= 0 ? "+" : ""}{netProfit.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-									</span>
-								</div>
+					<div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 16, marginTop: 16 }}>
+						<div style={{ 
+							padding: "12px 16px", 
+							fontSize: 14, 
+							fontWeight: 600,
+							backgroundColor: "#fff",
+							border: "1px solid var(--border)",
+							borderRadius: 0
+						}}>
+							<span className="dot" />
+							<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+								<span style={{ fontSize: 11, opacity: 0.8, fontWeight: 500 }}>Total Transactions</span>
+								<span>{counts.total}</span>
+							</div>
+						</div>
+						<div style={{ 
+							padding: "12px 16px", 
+							fontSize: 14, 
+							fontWeight: 600,
+							backgroundColor: "rgba(34, 197, 94, 0.1)",
+							border: "1px solid rgba(34, 197, 94, 0.3)",
+							borderRadius: 0
+						}}>
+							<span className="dot" />
+							<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+								<span style={{ fontSize: 11, opacity: 0.8, fontWeight: 500 }}>Income</span>
+								<span style={{ color: "var(--ok)" }}>{counts.income}</span>
+							</div>
+						</div>
+						<div style={{ 
+							padding: "12px 16px", 
+							fontSize: 14, 
+							fontWeight: 600,
+							backgroundColor: "rgba(239, 68, 68, 0.1)",
+							border: "1px solid rgba(239, 68, 68, 0.3)",
+							borderRadius: 0
+						}}>
+							<span className="dot" />
+							<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+								<span style={{ fontSize: 11, opacity: 0.8, fontWeight: 500 }}>Expense</span>
+								<span style={{ color: "var(--err)" }}>{counts.expense}</span>
+							</div>
+						</div>
+						<div style={{ 
+							padding: "12px 16px", 
+							fontSize: 14, 
+							fontWeight: 600,
+							backgroundColor: "rgba(251, 191, 36, 0.1)",
+							border: "1px solid rgba(251, 191, 36, 0.3)",
+							borderRadius: 0
+						}}>
+							<span className="dot" style={{ backgroundColor: "#fbbf24" }} />
+							<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+								<span style={{ fontSize: 11, opacity: 0.8, fontWeight: 500 }}>Liability</span>
+								<span style={{ color: "#fbbf24" }}>{counts.liability}</span>
+							</div>
+						</div>
+						<div style={{ 
+							padding: "12px 16px", 
+							fontSize: 14, 
+							fontWeight: 600,
+							backgroundColor: "rgba(59, 130, 246, 0.1)",
+							border: "1px solid rgba(59, 130, 246, 0.3)",
+							borderRadius: 0
+						}}>
+							<span className="dot" style={{ backgroundColor: "#3b82f6" }} />
+							<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+								<span style={{ fontSize: 11, opacity: 0.8, fontWeight: 500 }}>Asset</span>
+								<span style={{ color: "#3b82f6" }}>{counts.asset}</span>
+							</div>
+						</div>
+						<div style={{ 
+							padding: "12px 16px", 
+							fontSize: 14, 
+							fontWeight: 600,
+							backgroundColor: netProfit >= 0 ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)",
+							border: `1px solid ${netProfit >= 0 ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+							borderRadius: 0
+						}}>
+							<span className="dot" />
+							<div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+								<span style={{ fontSize: 11, opacity: 0.8, fontWeight: 500 }}>Net {netProfit >= 0 ? "Profit" : "Loss"}</span>
+								<span style={{ color: netProfit >= 0 ? "var(--ok)" : "var(--err)" }}>
+									{netProfit >= 0 ? "+" : ""}{netProfit.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+								</span>
 							</div>
 						</div>
 					</div>
@@ -360,6 +695,25 @@ export default function Dashboard() {
 						<>
 							<h3 style={{ marginBottom: 8, fontSize: 18, fontWeight: 600 }}>Yearly Summary</h3>
 							<p className="sub" style={{ marginBottom: 20 }}>Income vs Expense trends over the last 3 years</p>
+							{/* Totals Display */}
+							<div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20, padding: "12px", background: "var(--bg)", borderRadius: 8 }}>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Income</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "var(--ok)" }}>{viewTotals.income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Expense</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "var(--err)" }}>{viewTotals.expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Liability</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "#fbbf24" }}>{viewTotals.liability.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Asset</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "#3b82f6" }}>{viewTotals.asset.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+							</div>
 							{loading ? (
 								<div style={{ padding: "40px", textAlign: "center", color: "#666" }}>Loading chart data...</div>
 							) : yearlyData.length === 0 ? (
@@ -393,6 +747,25 @@ export default function Dashboard() {
 						<>
 							<h3 style={{ marginBottom: 8, fontSize: 18, fontWeight: 600 }}>Monthly Summary</h3>
 							<p className="sub" style={{ marginBottom: 20 }}>Income vs Expense trends over the last 12 months</p>
+							{/* Totals Display */}
+							<div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20, padding: "12px", background: "var(--bg)", borderRadius: 8 }}>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Income</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "var(--ok)" }}>{viewTotals.income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Expense</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "var(--err)" }}>{viewTotals.expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Liability</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "#fbbf24" }}>{viewTotals.liability.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Asset</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "#3b82f6" }}>{viewTotals.asset.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+							</div>
 							{loading ? (
 								<div style={{ padding: "40px", textAlign: "center", color: "#666" }}>Loading chart data...</div>
 							) : monthlyData.length === 0 ? (
@@ -426,6 +799,25 @@ export default function Dashboard() {
 						<>
 							<h3 style={{ marginBottom: 8, fontSize: 18, fontWeight: 600 }}>Latest Week Summary</h3>
 							<p className="sub" style={{ marginBottom: 20 }}>Income vs Expense for the most recent week</p>
+							{/* Totals Display */}
+							<div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20, padding: "12px", background: "var(--bg)", borderRadius: 8 }}>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Income</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "var(--ok)" }}>{viewTotals.income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Expense</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "var(--err)" }}>{viewTotals.expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Liability</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "#fbbf24" }}>{viewTotals.liability.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Asset</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "#3b82f6" }}>{viewTotals.asset.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+							</div>
 							{loading ? (
 								<div style={{ padding: "40px", textAlign: "center", color: "#666" }}>Loading chart data...</div>
 							) : weeklyData.length === 0 ? (
@@ -461,10 +853,27 @@ export default function Dashboard() {
 						<>
 							<h3 style={{ marginBottom: 8, fontSize: 18, fontWeight: 600 }}>Today's Summary</h3>
 							<p className="sub" style={{ marginBottom: 20 }}>Income vs Expense for today</p>
+							{/* Totals Display */}
+							<div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20, padding: "12px", background: "var(--bg)", borderRadius: 8 }}>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Income</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "var(--ok)" }}>{viewTotals.income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Expense</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "var(--err)" }}>{viewTotals.expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Liability</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "#fbbf24" }}>{viewTotals.liability.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Asset</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "#3b82f6" }}>{viewTotals.asset.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+							</div>
 							{loading ? (
 								<div style={{ padding: "40px", textAlign: "center", color: "#666" }}>Loading chart data...</div>
-							) : todayData.length === 0 ? (
-								<div style={{ padding: "40px", textAlign: "center", color: "#666" }}>No transactions for today</div>
 							) : (
 								<div style={{ height: "400px", marginTop: 20 }}>
 									<Bar 
@@ -494,6 +903,25 @@ export default function Dashboard() {
 						<>
 							<h3 style={{ marginBottom: 8, fontSize: 18, fontWeight: 600 }}>This Month Summary</h3>
 							<p className="sub" style={{ marginBottom: 20 }}>Income vs Expense for the current month</p>
+							{/* Totals Display */}
+							<div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20, padding: "12px", background: "var(--bg)", borderRadius: 8 }}>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Income</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "var(--ok)" }}>{viewTotals.income.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Expense</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "var(--err)" }}>{viewTotals.expense.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Liability</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "#fbbf24" }}>{viewTotals.liability.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+								<div style={{ textAlign: "center" }}>
+									<div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 4 }}>Asset</div>
+									<div style={{ fontSize: 16, fontWeight: 700, color: "#3b82f6" }}>{viewTotals.asset.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+								</div>
+							</div>
 							{loading ? (
 								<div style={{ padding: "40px", textAlign: "center", color: "#666" }}>Loading chart data...</div>
 							) : (

@@ -5,7 +5,7 @@ const { pool } = require("../db");
 router.get("/categories", async (req, res) => {
 	try {
 		const { type } = req.query;
-		if (type && !["income", "expense"].includes(type)) {
+		if (type && !["income", "expense", "liability", "asset"].includes(type)) {
 			return res.status(400).json({ error: "Invalid type" });
 		}
 		const sql =
